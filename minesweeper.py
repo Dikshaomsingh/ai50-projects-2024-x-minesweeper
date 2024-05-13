@@ -222,36 +222,13 @@ class MinesweeperAI():
         self.moves_made.add(cell)
         self.mark_safe(cell)
         neigh_cells = set(Minesweeper(self.height,self.width).nearby_cells(cell))
+
         for sentence in self.knowledge:
             for sf in sentence.known_safes():
-                print("level2.1: sf:",sf)
                 self.mark_safe(sf)
             for mn in sentence.known_mines():
-                print("level2.2: mn:",mn)
                 self.mark_mine(mn)  
-
-
-            # if sentence.count == 0:
-            #     for cells in sentence.cells:
-            #         self.safes.add(cells)
-            # elif sentence.count == len(sentence.cells):
-            #     for cells in sentence.cells:
-            #         self.mines.add(cells)
-
-
-            # if cell in sentence.cells:
-            #     sent = sentence.cells.remove(cell)
-            #     print("         ")
-            #     print("level2: current cell in sentence.cells removed: new sent:",sent,"cell",cell,sentence.cells)
-            #     print("         ")
-            #     for sf in sentence.known_safes():
-            #         print("level2.1: sf:",sf)
-            #         self.mark_safe(sf)
-            #     for mn in sentence.known_mines():
-            #         print("level2.2: mn:",mn)
-            #         self.mark_mine(mn)       
-        
-
+       
         for sentence in self.knowledge:
             if neigh_cells.issubset(sentence.cells) or neigh_cells.issuperset(sentence.cells): 
                 newCells = neigh_cells.difference(sentence.cells)
@@ -278,9 +255,6 @@ class MinesweeperAI():
         safe_moves = self.safes.difference(self.moves_made)
         if len(safe_moves):
             move = safe_moves.pop()
-            print("         ")
-            print("level n: safe move:",move)
-            print("         ")
             return move
         else:
             return None
