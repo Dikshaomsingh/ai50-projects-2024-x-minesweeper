@@ -229,12 +229,12 @@ class MinesweeperAI():
 
         empty_sets = []
 
-        if len(neigh_cells) == count:
-            for neigh in neigh_cells:
-                self.mark_mine(neigh)
-        elif count == 0:
+        if count == 0:
             for neigh in neigh_cells:
                 self.mark_safe(neigh)
+        elif len(neigh_cells) == count:
+            for neigh in neigh_cells:
+                self.mark_mine(neigh)
         else:
             for neigh in neigh_cells:
                 if neigh in self.mines:
@@ -244,7 +244,8 @@ class MinesweeperAI():
                     continue
                 neigh_set.add(neigh)
             self.knowledge.append(Sentence(neigh_set, neigh_count))
-
+        
+        if len(neigh_set):
             for sentence in self.knowledge:
                 if len(sentence.cells) == 0:  
                     empty_sets.append(sentence)
@@ -257,17 +258,23 @@ class MinesweeperAI():
                     empty_sets.append(sentence)
                 else:
                     if neigh_set.issubset(sentence.cells) or neigh_set.issuperset(sentence.cells):
-                        newCells = neigh_set.difference(sentence.cells)
+                        newCells = set()
+                        if neigh_set.issubset(sentence.cells):
+                            newCells = sentence.cells.difference(neigh_set)
+                        else:
+                            newCells = neigh_set.difference(sentence.cells)
                         if len(newCells):
                             newCount = abs(neigh_count - sentence.count)
+                            newSentence = Sentence(newCells, newCount)
                             if len(newCells) == newCount or newCount == 0:
-                                for sf in sentence.known_safes():
+                                for sf in newSentence.known_safes():
                                     self.mark_safe(sf)
-                                for mn in sentence.known_mines():
+                                for mn in newSentence.known_mines():
                                     self.mark_mine(mn)  
                             else:
-                                newSelf_knowledge.append(Sentence(newCells, newCount)) 
+                                newSelf_knowledge.append(newSentence) 
 
+        
         for sent in empty_sets:
             self.knowledge.remove(sent)
         if len(newSelf_knowledge): 
