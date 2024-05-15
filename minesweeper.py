@@ -78,25 +78,6 @@ class Minesweeper():
 
         return count
 
-    def nearby_cells(self, cell):
-        """
-        Returns the number of mines that are
-        within one row and column of a given cell,
-        not including the cell itself.
-        """
-        neigh_cells = []
-        # Loop over all cells within one row and column
-        for i in range(cell[0] - 1, cell[0] + 2):
-            for j in range(cell[1] - 1, cell[1] + 2):
-
-                # Ignore the cell itself
-                if (i, j) == cell or i < 0 or j < 0 or i >= self.height or j >= self.width:
-                    continue
-
-                # Update neigh_cells 
-                neigh_cells.append((i, j))
-        return neigh_cells
-
     def won(self):
         """
         Checks if all mines have been flagged.
@@ -186,6 +167,9 @@ class MinesweeperAI():
         # List of sentences about the game known to be true
         self.knowledge = []
 
+        # The number of cells left to be clicked
+        self.pending_cells = height*width
+
     def mark_mine(self, cell):
         """
         Marks a cell as a mine, and updates all knowledge
@@ -203,6 +187,39 @@ class MinesweeperAI():
         self.safes.add(cell)
         for sentence in self.knowledge:
             sentence.mark_safe(cell)
+
+    def nearby_cells(self, cell):
+        """
+        Returns the list of neighbours 
+        of a given cell,
+        not including the cell itself.
+        """
+        neigh_cells = []
+        # Loop over all cells within one row and column
+        for i in range(cell[0] - 1, cell[0] + 2):
+            for j in range(cell[1] - 1, cell[1] + 2):
+
+                # Ignore the cell itself and beyond the neighbour boundary
+                if (i, j) == cell or i < 0 or j < 0 or i >= self.height or j >= self.width:
+                    continue
+
+                # Update neigh_cells 
+                neigh_cells.append((i, j))
+        return neigh_cells
+
+    def removing_duplicates(self, item):
+        """
+        Replace duplicates with empty cells
+        So that they can be removed in next cycle.
+        """
+        if self.knowledge.count(item) > 1:
+            count = 0
+            for i in range(len(self.knowledge)):
+                if item == self.knowledge[i]:
+                    count += 1
+                    if count > 1:
+                        self.knowledge[i].cells = set()
+                        self.knowledge[i].count = 0
 
     def add_knowledge(self, cell, count):
         """
@@ -222,12 +239,14 @@ class MinesweeperAI():
         newSelf_knowledge = []
         self.moves_made.add(cell)
         self.mark_safe(cell)
+        self.pending_cells -= 1
 
-        neigh_cells = Minesweeper(self.height, self.width).nearby_cells(cell)
+        neigh_cells = self.nearby_cells(cell)
         neigh_set = set()
         neigh_count = count
 
         empty_sets = []
+        check_duplicates = []
 
         if count == 0:
             for neigh in neigh_cells:
@@ -243,40 +262,52 @@ class MinesweeperAI():
                 if neigh in self.moves_made or neigh in self.safes:
                     continue
                 neigh_set.add(neigh)
-            self.knowledge.append(Sentence(neigh_set, neigh_count))
-        
-        if len(neigh_set):
-            for sentence in self.knowledge:
-                if len(sentence.cells) == 0:  
-                    empty_sets.append(sentence)
-                    continue
-                if sentence.count == 0 or len(sentence.cells) == sentence.count:
-                    for sf in sentence.known_safes():
-                        self.mark_safe(sf)
-                    for mn in sentence.known_mines():
-                        self.mark_mine(mn)  
-                    empty_sets.append(sentence)
-                else:
-                    if neigh_set.issubset(sentence.cells) or neigh_set.issuperset(sentence.cells):
-                        newCells = set()
-                        if neigh_set.issubset(sentence.cells):
-                            newCells = sentence.cells.difference(neigh_set)
-                        else:
-                            newCells = neigh_set.difference(sentence.cells)
-                        if len(newCells):
-                            newCount = abs(neigh_count - sentence.count)
-                            newSentence = Sentence(newCells, newCount)
-                            if len(newCells) == newCount or newCount == 0:
-                                for sf in newSentence.known_safes():
-                                    self.mark_safe(sf)
-                                for mn in newSentence.known_mines():
-                                    self.mark_mine(mn)  
+            newSentence = Sentence(neigh_set, neigh_count)
+            if newSentence not in self.knowledge:
+                self.knowledge.append(newSentence)
+            
+        for sentence in self.knowledge:
+            if len(sentence.cells) == 0:
+                empty_sets.append(sentence)
+                continue
+            if sentence.count == 0 or len(sentence.cells) == sentence.count:
+                for sf in sentence.known_safes():
+                    self.mark_safe(sf)
+                for mn in sentence.known_mines():
+                    self.mark_mine(mn) 
+                empty_sets.append(sentence)
+            else:
+                for nextSentence in self.knowledge:
+                    if sentence == nextSentence:
+                        continue
+                    else:
+                        if sentence.cells.issubset(nextSentence.cells) or sentence.cells.issuperset(nextSentence.cells):
+                            newCells = set()
+                            if sentence.cells.issubset(nextSentence.cells):
+                                newCells = nextSentence.cells.copy().difference(sentence.cells)
+                                leftover = sentence
                             else:
-                                newSelf_knowledge.append(newSentence) 
+                                newCells = sentence.cells.copy().difference(nextSentence.cells)
+                                leftover = nextSentence
+                            if len(newCells):
+                                newCount = abs(nextSentence.count - sentence.count)
+                                newSentence = Sentence(newCells, newCount)
+                                if len(newCells) == newCount or newCount == 0:
+                                    for sf in newSentence.known_safes():
+                                        self.mark_safe(sf)
+                                    for mn in newSentence.known_mines():
+                                        self.mark_mine(mn)
+                                    self.removing_duplicates(leftover)
+                                elif newSentence in self.knowledge or newSentence in newSelf_knowledge:
+                                    continue
+                                else:
+                                    newSelf_knowledge.append(newSentence) 
 
         
+
         for sent in empty_sets:
             self.knowledge.remove(sent)
+            
         if len(newSelf_knowledge): 
             self.knowledge += newSelf_knowledge
 
@@ -306,7 +337,7 @@ class MinesweeperAI():
             2) are not known to be mines
         """
 
-        while len(self.mines) < len(Minesweeper().mines):
+        while self.pending_cells - len(self.mines) > 0:
             i = random.randrange(self.height)
             j = random.randrange(self.width)
             move = (i, j)
