@@ -221,6 +221,52 @@ class MinesweeperAI():
                         self.knowledge[i].cells = set()
                         self.knowledge[i].count = 0
 
+    def infer_multiple_sentences(self):
+        empty_sets = []
+        newSelf_knowledge = []
+        for sentence in self.knowledge:
+            if len(sentence.cells) == 0:
+                empty_sets.append(sentence)
+                continue
+            if sentence.count == 0 or len(sentence.cells) == sentence.count:
+                for sf in sentence.known_safes():
+                    self.mark_safe(sf)
+                for mn in sentence.known_mines():
+                    self.mark_mine(mn) 
+                empty_sets.append(sentence)
+            
+            for nextSentence in self.knowledge:
+                if sentence == nextSentence:
+                    continue
+                else:
+                    if sentence.cells.issubset(nextSentence.cells) or sentence.cells.issuperset(nextSentence.cells):
+                        newCells = set()
+                        if sentence.cells.issubset(nextSentence.cells):
+                            newCells = nextSentence.cells.copy().difference(sentence.cells)
+                            leftover = sentence
+                        else:
+                            newCells = sentence.cells.copy().difference(nextSentence.cells)
+                            leftover = nextSentence
+                        if len(newCells):
+                            newCount = abs(nextSentence.count - sentence.count)
+                            newSentence = Sentence(newCells, newCount)
+                            if len(newCells) == newCount or newCount == 0:
+                                for sf in newSentence.known_safes():
+                                    self.mark_safe(sf)
+                                for mn in newSentence.known_mines():
+                                    self.mark_mine(mn)
+                                self.removing_duplicates(leftover)
+                            elif newSentence in self.knowledge or newSentence in newSelf_knowledge:
+                                continue
+                            else:
+                                newSelf_knowledge.append(newSentence) 
+       
+        for sent in empty_sets:
+            self.knowledge.remove(sent)
+
+        return newSelf_knowledge
+
+
     def add_knowledge(self, cell, count):
         """
         Called when the Minesweeper board tells us, for a given
@@ -245,9 +291,6 @@ class MinesweeperAI():
         neigh_set = set()
         neigh_count = count
 
-        empty_sets = []
-        check_duplicates = []
-
         if count == 0:
             for neigh in neigh_cells:
                 self.mark_safe(neigh)
@@ -266,50 +309,17 @@ class MinesweeperAI():
             if newSentence not in self.knowledge:
                 self.knowledge.append(newSentence)
             
-        for sentence in self.knowledge:
-            if len(sentence.cells) == 0:
-                empty_sets.append(sentence)
-                continue
-            if sentence.count == 0 or len(sentence.cells) == sentence.count:
-                for sf in sentence.known_safes():
-                    self.mark_safe(sf)
-                for mn in sentence.known_mines():
-                    self.mark_mine(mn) 
-                empty_sets.append(sentence)
+        count = 0
+        while True:
+            count += 1
+            print("inside knowledge loop:",len(self.knowledge), "count:",count)
+            newSelf_knowledge = self.infer_multiple_sentences()
+            if len(newSelf_knowledge): 
+                print("have new knowledge",len(newSelf_knowledge))
+                self.knowledge += newSelf_knowledge
             else:
-                for nextSentence in self.knowledge:
-                    if sentence == nextSentence:
-                        continue
-                    else:
-                        if sentence.cells.issubset(nextSentence.cells) or sentence.cells.issuperset(nextSentence.cells):
-                            newCells = set()
-                            if sentence.cells.issubset(nextSentence.cells):
-                                newCells = nextSentence.cells.copy().difference(sentence.cells)
-                                leftover = sentence
-                            else:
-                                newCells = sentence.cells.copy().difference(nextSentence.cells)
-                                leftover = nextSentence
-                            if len(newCells):
-                                newCount = abs(nextSentence.count - sentence.count)
-                                newSentence = Sentence(newCells, newCount)
-                                if len(newCells) == newCount or newCount == 0:
-                                    for sf in newSentence.known_safes():
-                                        self.mark_safe(sf)
-                                    for mn in newSentence.known_mines():
-                                        self.mark_mine(mn)
-                                    self.removing_duplicates(leftover)
-                                elif newSentence in self.knowledge or newSentence in newSelf_knowledge:
-                                    continue
-                                else:
-                                    newSelf_knowledge.append(newSentence) 
-
-        
-
-        for sent in empty_sets:
-            self.knowledge.remove(sent)
-            
-        if len(newSelf_knowledge): 
-            self.knowledge += newSelf_knowledge
+                print("break free")
+                break
 
         # raise NotImplementedError
 
